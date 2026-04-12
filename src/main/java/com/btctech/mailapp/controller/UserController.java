@@ -19,6 +19,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final JwtUtil jwtUtil;
 
     /**
      * Parent Approval API
@@ -30,7 +31,7 @@ public class UserController {
             @PathVariable Long id) {
         
         String token = authHeader.replace("Bearer ", "");
-        String identifier = JwtUtil.staticExtractUsername(token);
+        String identifier = jwtUtil.extractEmail(token);
         
         // Identify caller (Parent)
         User parent = userService.getUserByEmailOrUsername(identifier);

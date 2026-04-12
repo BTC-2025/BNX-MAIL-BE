@@ -25,22 +25,40 @@ This document provides technical details for all REST API endpoints available in
 
 ## 2. Authentication (`/api/auth`)
 
-### 2.1 User Registration
-Registers a new user account.
+### 2.1 User Registration (Smart Onboarding)
+Registers a new user account with automatic role assignment.
 - **URL**: `/api/auth/register`
 - **Method**: `POST`
-- **Body**:
+- **Body (Personal)**:
 ```json
 {
+  "mode": "PERSONAL",
   "username": "siva_kumar",
   "password": "SecurePassword123",
   "firstName": "Siva",
   "lastName": "Kumar",
-  "accountType": "PUBLIC" // Options: PUBLIC, BUSINESS, CHILD
+  "dob": "2010-08-15" // If age < 18, becomes CHILD_USER
 }
 ```
-**Note**: The `email` field is optional at this stage and will be created in Step 2.
-- **Response**: Returns a `userId` and a `tempToken`. The `tempToken` is required for the next step (Email Creation).
+**Auto-Logic**: If age < 18, the account is marked as `CHILD`. If age >= 18, it is marked as `PUBLIC`.
+
+- **Body (Business)**:
+```json
+{
+  "mode": "BUSINESS",
+  "username": "btc_tech",
+  "password": "SecurePassword123",
+  "businessName": "BTC Tech",
+  "businessType": "Software",
+  "registrationNumber": "GST123456",
+  "ownerFirstName": "Siva",
+  "ownerLastName": "Kumar",
+  "domain": "btctech.shop"
+}
+```
+**Auto-Logic**: Creates an Organization and a Business Profile automatically.
+
+- **Response**: Returns a `userId` and a `tempToken`.
 
 ### 2.2 User Login
 Authenticates and establishes a session.
@@ -59,7 +77,7 @@ Authenticates and establishes a session.
 
 ## 3. Email Management (`/api/emails`)
 
-### 3.1 Create Custom Email
+### 3.1 Create Custom Email (`Step 2`)
 Allocates an actual mailbox on the server.
 - **URL**: `/api/emails/create`
 - **Method**: `POST`
@@ -68,9 +86,11 @@ Allocates an actual mailbox on the server.
 ```json
 {
   "emailName": "siva",
-  "password": "SecurePassword123" 
+  "password": "SecurePassword123" // Optional: Reuses registration password if omitted
 }
 ```
+**Frictionless Flow**: If `password` is omitted, the backend automatically reuses the password from the initial Step 1 registration.
+
 - **Response**: Returns `emailId`, `email` address, and `maildirPath`.
 
 ### 3.2 List Email Accounts

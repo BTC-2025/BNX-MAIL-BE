@@ -1,7 +1,6 @@
 package com.btctech.mailapp.service;
 
 import com.btctech.mailapp.entity.AccountType;
-import com.btctech.mailapp.entity.Organization;
 import com.btctech.mailapp.dto.RegisterRequest;
 import com.btctech.mailapp.entity.User;
 import com.btctech.mailapp.exception.MailException;
@@ -12,7 +11,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import com.btctech.mailapp.strategy.RegistrationStrategy;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service
@@ -21,7 +28,17 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final OrganizationService organizationService;
+    private final Map<String, RegistrationStrategy> registrationStrategies;
+
+    @Autowired
+    public UserService(UserRepository userRepository, 
+                       PasswordEncoder passwordEncoder,
+                       List<RegistrationStrategy> strategies) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.registrationStrategies = strategies.stream()
+                .collect(Collectors.toMap(RegistrationStrategy::getMode, Function.identity()));
+    }
 
     /**
      * Validate username
@@ -42,102 +59,34 @@ public class UserService {
     }
 
     /**
-     * Create user
+     * Create user using strategies
      */
     @Transactional
     public User createUser(RegisterRequest request) {
-        // Validate
         validateUsername(request.getUsername());
 
-        AccountType type = AccountType.valueOf(request.getAccountType().toUpperCase());
-
-        switch (type) {
-            case PUBLIC:
-                return createPublicUser(request);
-            case BUSINESS:
-                return createBusinessUser(request);
-            case CHILD:
-                return createChildUser(request);
-            default:
-                throw new MailException("Unsupported account type: " + type);
-        }
-    }
-
-    private User createPublicUser(RegisterRequest request) {
-        User user = createBaseUser(request);
-        user.setAccountType(AccountType.PUBLIC);
-        user.setRole("PUBLIC_USER");
-        user.setApproved(true);
-        user = userRepository.save(user);
-        log.info("Created PUBLIC user: {}", user.getUsername());
-        return user;
-    }
-
-    private User createBusinessUser(RegisterRequest request) {
-        if (request.getCompanyName() == null || request.getDomain() == null) {
-            throw new MailException("Company name and domain are required for Business accounts");
+        RegistrationStrategy strategy = registrationStrategies.get(request.getMode().toUpperCase());
+        if (strategy == null) {
+            throw new MailException("Unsupported registration mode: " + request.getMode());
         }
 
-        // 1. Create Organization
-        Organization org = organizationService.createOrganization(
-                request.getCompanyName(),
-                request.getDomain()
-        );
-
-        // 2. Create User linked to Org
-        User user = createBaseUser(request);
-        user.setAccountType(AccountType.BUSINESS);
-        user.setOrganization(org);
-        user.setRole("ORG_ADMIN"); // Business creator is admin
-        user.setApproved(true);
-
-        user = userRepository.save(user);
-        log.info("Created BUSINESS user: {} (ORG_ADMIN) for organization: {}", user.getUsername(), org.getName());
-        return user;
+        return strategy.register(request);
     }
 
-    private User createChildUser(RegisterRequest request) {
-        if (request.getParentEmail() == null || request.getDob() == null) {
-            throw new MailException("Parent email and Date of Birth are required for Child accounts");
-        }
-
-        // 1. Find parent
-        User parent = userRepository.findByEmail(request.getParentEmail())
-                .orElseThrow(() -> new MailException("Parent account not found: " + request.getParentEmail()));
-
-        // 2. Create Child User
-        User user = createBaseUser(request);
-        user.setAccountType(AccountType.CHILD);
-        user.setParent(parent);
-        user.setDob(request.getDob());
-        user.setRole("CHILD_USER");
-        user.setApproved(false); // Child needs parental approval
-
-        // 3. Update Parent's role to PARENT if not already ADMIN/PARENT
-        if (!"ORG_ADMIN".equals(parent.getRole()) && !"PARENT".equals(parent.getRole())) {
-            parent.setRole("PARENT");
-            userRepository.save(parent);
-        }
-
-        user = userRepository.save(user);
-        log.info("Created CHILD user: {} linked to parent: {}", user.getUsername(), parent.getUsername());
-        return user;
-    }
-
-    private User createBaseUser(RegisterRequest request) {
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setFirstName(request.getFirstName());
-        user.setLastName(request.getLastName());
-        user.setActive(true);
-        return user;
+    /**
+     * Auth Result DTO
+     */
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class LoginResult {
+        private User user;
+        private boolean autoUpgraded;
     }
 
     /**
      * Authenticate user by email
      */
-    public User authenticate(String email, String password) {
+    public LoginResult authenticate(String email, String password) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new MailException("Invalid credentials"));
 
@@ -149,12 +98,26 @@ public class UserService {
             throw new MailException("Account is disabled");
         }
 
+        boolean autoUpgraded = false;
+
+        // AUTO-UPGRADE: CHILD to PUBLIC if 18+
+        if (user.getAccountType() == AccountType.CHILD && user.getDob() != null) {
+            int age = Period.between(user.getDob(), LocalDate.now()).getYears();
+            if (age >= 18) {
+                log.info("Auto-upgrading user {} from CHILD to PUBLIC (Age: {})", user.getUsername(), age);
+                user.setAccountType(AccountType.PUBLIC);
+                user.setRole("PUBLIC_USER");
+                user.setApproved(true);
+                autoUpgraded = true;
+            }
+        }
+
         // Update last login
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
         log.info("User authenticated: {}", email);
-        return user;
+        return new LoginResult(user, autoUpgraded);
     }
 
     /**

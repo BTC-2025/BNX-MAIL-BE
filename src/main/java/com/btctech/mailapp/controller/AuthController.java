@@ -27,10 +27,10 @@ public class AuthController {
     private final MailboxService mailboxService;
     private final JwtUtil jwtUtil;
     private final SessionService sessionService;
+    private final com.btctech.mailapp.service.AuthService authService; // ✅ Inject AuthService
 
     /**
      * STEP 1: Register user (username + password)
-     * Returns temporary token for email creation
      */
     @PostMapping("/register")
     @Transactional
@@ -61,39 +61,113 @@ public class AuthController {
     }
 
     /**
-     * STEP 3: Login with EMAIL + password
+     * STEP 3: Login with EMAIL + password (Enterprise Version)
      */
     @PostMapping("/login")
     @Transactional
-    public ResponseEntity<ApiResponse<Map<String, Object>>> login(
-            @Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<ApiResponse<com.btctech.mailapp.dto.LoginResponseData>> login(
+            @Valid @RequestBody LoginRequest request,
+            jakarta.servlet.http.HttpServletRequest httpRequest) {
 
-        log.info("Login request for: {}", request.getEmail());
+        log.info("Enterprise Login request for: {}", request.getEmail());
 
-        // Authenticate
-        User user = userService.authenticate(request.getEmail(), request.getPassword());
+        // 1. Authenticate & Detect Upgrade
+        com.btctech.mailapp.service.UserService.LoginResult result = userService.authenticate(request.getEmail(), request.getPassword());
+        User user = result.getUser();
 
-        // Get mail account
+        // 2. Extract Metadata
+        String ipAddress = httpRequest.getRemoteAddr();
+        String userAgent = httpRequest.getHeader("User-Agent");
+
+        // 3. Generate Dual Tokens
+        String accessToken = jwtUtil.generateToken(request.getEmail());
+        String refreshToken = authService.createRefreshToken(user, ipAddress, userAgent);
+
+        // 4. Get primary mail account for session
         MailAccount mailAccount = mailboxService.getMailAccountByEmail(request.getEmail());
 
-        // Generate JWT
-        String token = jwtUtil.generateToken(request.getEmail());
-
-        // Create session (store password encrypted)
+        // 5. Create session (store password linked to accessToken)
         sessionService.createSession(user.getId(), mailAccount.getId(),
-                request.getPassword(), token);
+                request.getPassword(), accessToken);
 
-        // Prepare response
-        Map<String, Object> data = new HashMap<>();
-        data.put("token", token);
-        data.put("email", request.getEmail());
-        data.put("username", user.getUsername());
-        data.put("firstName", user.getFirstName());
-        data.put("lastName", user.getLastName());
-        data.put("accountType", user.getAccountType());
-        data.put("role", user.getRole());
+        // 6. Build Rich SaaS Response
+        com.btctech.mailapp.dto.LoginResponseData data = authService.buildLoginResponse(user, result.isAutoUpgraded(), accessToken, refreshToken);
 
         return ResponseEntity.ok(
                 ApiResponse.success(data, "Login successful"));
+    }
+
+    /**
+     * Get all active sessions for current user
+     */
+    @GetMapping("/sessions")
+    public ResponseEntity<ApiResponse<java.util.List<com.btctech.mailapp.dto.SessionResponse>>> getSessions(
+            @RequestHeader("Authorization") String authHeader) {
+        
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractEmail(token);
+        User user = userService.getUserByEmail(email);
+
+        log.info("Fetching sessions for user: {}", user.getUsername());
+        java.util.List<com.btctech.mailapp.dto.SessionResponse> sessions = authService.getActiveSessions(user, null); // We don't track current access token here yet
+
+        return ResponseEntity.ok(
+                ApiResponse.success(sessions, "Sessions retrieved successfully"));
+    }
+
+    /**
+     * Remotely revoke a specific session
+     */
+    @DeleteMapping("/sessions/{sessionId}")
+    public ResponseEntity<ApiResponse<Void>> revokeSession(
+            @PathVariable Long sessionId,
+            @RequestHeader("Authorization") String authHeader) {
+        
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractEmail(token);
+        User user = userService.getUserByEmail(email);
+
+        log.info("Revoking session {} for user {}", sessionId, user.getUsername());
+        authService.revokeSession(sessionId, user);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(null, "Session revoked successfully"));
+    }
+
+    /**
+     * Token Rotation: Get new access token using refresh token
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<com.btctech.mailapp.dto.LoginResponseData>> refresh(
+            @Valid @RequestBody com.btctech.mailapp.dto.TokenRefreshRequest request) {
+        
+        log.info("Token rotation request");
+        com.btctech.mailapp.dto.LoginResponseData data = authService.refreshToken(request);
+        
+        return ResponseEntity.ok(
+                ApiResponse.success(data, "Token refreshed successfully"));
+    }
+
+    /**
+     * Logout: Revoke tokens and cleanup session
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @RequestHeader("Authorization") String authHeader,
+            @Valid @RequestBody com.btctech.mailapp.dto.TokenRefreshRequest request) {
+        
+        String accessToken = authHeader.substring(7);
+        String refreshToken = request.getRefreshToken();
+
+        log.info("Logout request for session: {}", accessToken);
+
+        // 1. Revoke refresh token in DB
+        authService.logout(refreshToken);
+
+        // 2. Cleanup password session
+        sessionService.deleteSession(accessToken);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(null, "Logged out successfully"));
     }
 }

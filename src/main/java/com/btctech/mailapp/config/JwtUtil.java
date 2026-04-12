@@ -15,10 +15,14 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    private final String secret = "secretsecretsecretsecretsecretsecretsecret"; // 10/10 Polish simple key
+    @Value("${jwt.secret:secretsecretsecretsecretsecretsecretsecret}")
+    private String secret;
 
-    @Value("${jwt.expiration:86400000}") // 24 hours
-    private Long expiration;
+    @Value("${jwt.expiration:900000}") // Default 15 mins (900s)
+    private Long jwtExpiration;
+
+    @Value("${jwt.refresh.expiration:604800000}") // Default 7 days (604800s)
+    private Long refreshExpiration;
 
     private java.security.Key getSigningKey() {
         byte[] keyBytes = secret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -55,18 +59,27 @@ public class JwtUtil {
     }
 
     public String generateToken(String username) {
-        Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, username);
+        return generateToken(new HashMap<>(), username, jwtExpiration);
     }
 
-    private String createToken(Map<String, Object> claims, String subject) {
+    public String generateRefreshToken(String username) {
+        return generateToken(new HashMap<>(), username, refreshExpiration);
+    }
+
+    private String generateToken(Map<String, Object> claims, String subject, long expirationDuration) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(subject)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .setExpiration(new Date(System.currentTimeMillis() + expirationDuration))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public Long getExpirationSeconds(String token) {
+        Date expirationDate = extractExpiration(token);
+        long diff = expirationDate.getTime() - System.currentTimeMillis();
+        return Math.max(0, diff / 1000);
     }
 
     public Boolean validateToken(String token, UserDetails userDetails) {
@@ -77,25 +90,5 @@ public class JwtUtil {
     public Boolean validateToken(String token, String username) {
         final String extractedUsername = extractUsername(token);
         return (extractedUsername.equals(username) && !isTokenExpired(token));
-    }
-
-    /**
-     * STATIC extraction helper for quick lookups (10/10 Polish)
-     */
-    public static String staticExtractUsername(String token) {
-        try {
-            String secretStr = "secretsecretsecretsecretsecretsecretsecret"; 
-            byte[] keyBytes = secretStr.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            java.security.Key key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
-            
-            return Jwts.parserBuilder()
-                    .setSigningKey(key)
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody()
-                    .getSubject();
-        } catch (Exception e) {
-            return null;
-        }
     }
 }

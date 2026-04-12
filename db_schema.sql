@@ -235,3 +235,13 @@ INSERT IGNORE INTO users (username, email, password, first_name, last_name, role
 VALUES 
 ('admin', 'admin@btctech.shop', '$2a$10$dummyHashedPassword', 'Admin', 'User', 'ADMIN'),
 ('siva', 'siva@btctech.shop', '$2a$10$dummyHashedPassword', 'Siva', 'Kumar', 'USER');
+CREATE TABLE IF NOT EXISTS business_profiles (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    business_name VARCHAR(255) NOT NULL,
+    business_type VARCHAR(100),
+    registration_number VARCHAR(100),
+    created_at DATETIME NOT NULL,
+    UNIQUE (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

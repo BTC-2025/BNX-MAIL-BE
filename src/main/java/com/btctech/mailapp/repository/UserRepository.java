@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"organization"})
     Optional<User> findByUsername(String username);
 
     boolean existsByUsername(String username);

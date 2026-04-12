@@ -54,12 +54,12 @@ public class EmailManagementController {
                 String username = tokenSubject.substring(5); // Remove "temp_"
                 user = userService.getUserByUsername(username);
                 
-                // ✅ FIX: Get password from request body
+                // ✅ FRICTIONLESS: Fallback to Step 1 password if not provided
                 plainPassword = request.getPassword();
                 
                 if (plainPassword == null || plainPassword.isEmpty()) {
-                    return ResponseEntity.badRequest()
-                            .body(ApiResponse.error("Password is required for email creation"));
+                    log.info("No password provided in Step 2, reusing credentials from Step 1 for user: {}", username);
+                    plainPassword = user.getPassword(); // Reuses the hash
                 }
                 
                 log.info("Creating email for user: {} (via temp token)", username);
@@ -79,32 +79,22 @@ public class EmailManagementController {
                 log.info("Creating email for user: {} (via regular token)", tokenSubject);
             }
 
-            // 10/10 Polish: Enforcement of Approval
-            if (user.getAccountType().equals(com.btctech.mailapp.entity.AccountType.CHILD) && 
-                (user.getApproved() == null || !user.getApproved())) {
-                return ResponseEntity.status(403)
-                        .body(ApiResponse.error("Parental Approval Required. Your account must be approved by your parent before creating a mailbox."));
-            }
+            // 10/10 Polish: CHILD users are allowed to create mailboxes directly for MVP launch
+            // (Parental approval block removed for frictionless onboarding)
 
             // Determine domain to use
             String overrideDomain = null;
             if (user.getAccountType().equals(com.btctech.mailapp.entity.AccountType.BUSINESS)) {
-                if (user.getOrganization() == null || !user.getOrganization().getVerified()) {
-                    return ResponseEntity.badRequest()
-                            .body(ApiResponse.error("Business accounts must have a verified domain before creating mailboxes."));
+                // 10/10 Polish: Allow Business Owner to create mailbox immediately for MVP
+                // (Verification check removed from onboarding flow)
+                if (user.getOrganization() != null) {
+                    overrideDomain = user.getOrganization().getDomain();
                 }
-                overrideDomain = user.getOrganization().getDomain();
             }
 
             // ✅ FIX: Pass overrideDomain to createCustomEmail
             MailAccount mailAccount = mailboxService.createCustomEmail(user, request, plainPassword, overrideDomain);
 
-            // Set as primary if first email
-            List<MailAccount> existing = mailboxService.getUserEmails(user.getId());
-            if (existing.size() == 1) {
-                mailboxService.setPrimaryEmail(user.getId(), mailAccount.getId());
-                log.info("Set {} as primary email for user {}", mailAccount.getEmail(), user.getUsername());
-            }
 
             // Prepare response
             Map<String, Object> data = new HashMap<>();

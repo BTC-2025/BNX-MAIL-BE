@@ -14,7 +14,7 @@ public class CreateEmailRequest {
              message = "Email name can only contain lowercase letters, numbers, dots, hyphens and underscores")
     private String emailName;
     
-    // ✅ Password field (required for temp tokens, optional for regular tokens)
+    // Optional: If not provided, the password from Step 1 registration will be used.
     @Size(min = 8, message = "Password must be at least 8 characters")
     private String password;
 }

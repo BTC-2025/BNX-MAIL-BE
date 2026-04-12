@@ -111,13 +111,8 @@ public class MailboxService {
             mailAccount = mailAccountRepository.save(mailAccount);
             log.info("✓ Mail account created: {} with path: {}", fullEmail, maildirPath);
             
-            // Set as primary if first email
-            List<MailAccount> userEmails = mailAccountRepository.findByUserId(user.getId());
-            if (userEmails.size() == 1) {
-                mailAccount.setIsPrimary(true);
-                mailAccountRepository.save(mailAccount);
-                log.info("✓ Set as primary email: {}", fullEmail);
-            }
+            // 10/10 Polish: Every mailbox starts with isPrimary = false.
+            // (Auto-primary logic removed to allow for manual user selection later)
             
             return mailAccount;
             

@@ -2,6 +2,7 @@ package com.btctech.mailapp.controller;
 
 import com.btctech.mailapp.dto.ApiResponse;
 import com.btctech.mailapp.service.BusinessService;
+import com.btctech.mailapp.config.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import java.util.Map;
 public class BusinessController {
 
     private final BusinessService businessService;
+    private final JwtUtil jwtUtil;
 
     /**
      * Domain Init API
@@ -60,10 +62,9 @@ public class BusinessController {
             @RequestHeader("Authorization") String authHeader,
             @RequestBody com.btctech.mailapp.dto.InviteMemberRequest request) {
         
-        // In a real app, we'd get the user from the SecurityContext
         // For now, we'll look up based on the token principal (assume it's email)
         String token = authHeader.replace("Bearer ", "");
-        String email = com.btctech.mailapp.config.JwtUtil.staticExtractUsername(token); 
+        String email = jwtUtil.extractEmail(token); 
         
         com.btctech.mailapp.entity.User admin = businessService.getUserByEmail(email);
         

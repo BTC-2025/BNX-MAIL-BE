@@ -2,6 +2,7 @@ package com.btctech.mailapp.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
+import java.time.LocalDate;
 
 @Data
 public class RegisterRequest {
@@ -11,17 +12,22 @@ public class RegisterRequest {
     @NotBlank(message = "Password is required")
     private String password;
 
+    // Common fields
     private String firstName;
     private String lastName;
 
-    @NotBlank(message = "Account type is required")
-    private String accountType; // PUBLIC, BUSINESS, CHILD
+    @NotBlank(message = "Mode is required")
+    private String mode; // PERSONAL, BUSINESS
+
+    // Personal/Child fields
+    private LocalDate dob;
+    private String parentEmail;
 
     // Business fields
-    private String companyName;
-    private String domain;
-
-    // Child fields
-    private String parentEmail;
-    private java.time.LocalDate dob;
+    private String businessName;
+    private String businessType;
+    private String registrationNumber;
+    private String ownerFirstName;
+    private String ownerLastName;
+    private String domain; // Required for business to set up org
 }
