@@ -28,6 +28,7 @@ public class MailReceiveController {
     @GetMapping("/inbox")
     public ResponseEntity<ApiResponse<InboxResponse>> getInbox(
             @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(required = false) String category,
             @RequestHeader("Authorization") String authHeader,
             Authentication authentication) {
 
@@ -46,6 +47,15 @@ public class MailReceiveController {
 
             // Fetch emails
             List<EmailDTO> emails = mailReceiveService.getInbox(email, password, limit);
+            if (emails == null) emails = new java.util.ArrayList<>();
+
+            // Filter by category if provided
+            if (category != null && !category.isEmpty()) {
+                emails = emails.stream()
+                        .filter(e -> category.equalsIgnoreCase(e.getCategory()))
+                        .toList();
+                log.info("Filtered inbox to {} emails for category: {}", emails.size(), category);
+            }
 
             // Get unread count
             int unreadCount = mailReceiveService.getUnreadCount(email, password);
@@ -95,6 +105,7 @@ public class MailReceiveController {
 
             // Fetch emails
             List<EmailDTO> emails = mailReceiveService.getSent(email, password, limit);
+            if (emails == null) emails = new java.util.ArrayList<>();
 
             // Build response
             InboxResponse response = InboxResponse.builder()
@@ -141,6 +152,7 @@ public class MailReceiveController {
 
             // Fetch emails
             List<EmailDTO> emails = mailReceiveService.getStarred(email, password, limit);
+            if (emails == null) emails = new java.util.ArrayList<>();
 
             // Build response
             InboxResponse response = InboxResponse.builder()
@@ -221,6 +233,7 @@ public class MailReceiveController {
             }
 
             List<EmailDTO> emails = mailReceiveService.getTrash(email, password, limit);
+            if (emails == null) emails = new java.util.ArrayList<>();
 
             InboxResponse response = InboxResponse.builder()
                     .email(email)

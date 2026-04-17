@@ -108,10 +108,10 @@ public class MailReceiveService {
             folder = store.getFolder("INBOX");
             folder.open(Folder.READ_ONLY);
 
-            if (!(folder instanceof UIDFolder)) {
-                throw new MailException("INBOX does not support UIDs, required for Starred feature.");
+            UIDFolder uidFolder = (folder instanceof UIDFolder) ? (UIDFolder) folder : null;
+            if (uidFolder == null) {
+                log.warn("INBOX does not support persistent UIDs, falling back to message numbers for Starred feature.");
             }
-            UIDFolder uidFolder = (UIDFolder) folder;
 
             Message[] messages = folder.search(new FlagTerm(new Flags(Flags.Flag.FLAGGED), true));
             List<EmailDTO> emails = new ArrayList<>();
@@ -442,7 +442,72 @@ public class MailReceiveService {
         dto.setHtmlBody(content[1]);
         dto.setHasAttachments(hasAttachments(message));
         if (dto.isHasAttachments()) dto.setAttachments(extractAttachments(message));
+        
+        dto.setCategory(categorizeEmail(message));
+        
         return dto;
+    }
+
+    private String categorizeEmail(Message message) {
+        if (message == null) return "PRIMARY";
+        try {
+            String subject = "";
+            try { 
+                subject = message.getSubject() != null ? message.getSubject().toUpperCase() : "";
+            } catch (Exception e) {
+                log.debug("Could not read subject for categorization: {}", e.getMessage());
+            }
+
+            String from = "";
+            try {
+                Address[] fromAddresses = message.getFrom();
+                if (fromAddresses != null && fromAddresses.length > 0) {
+                    from = fromAddresses[0].toString().toLowerCase();
+                }
+            } catch (Exception e) {
+                log.debug("Could not read sender for categorization: {}", e.getMessage());
+            }
+
+            // 1. Social
+            if (from.contains("facebook.com") || from.contains("instagram.com") || 
+                from.contains("linkedin.com") || from.contains("twitter.com") || 
+                from.contains("t.co") || from.contains("fb.com") || from.contains("social")) {
+                return "SOCIAL";
+            }
+
+            // 2. Purchases
+            if (subject.contains("ORDER") || subject.contains("INVOICE") || 
+                subject.contains("RECEIPT") || subject.contains("PURCHASE") || 
+                subject.contains("AMAZON") || subject.contains("FLIPKART") ||
+                subject.contains("BILL") || subject.contains("PAYMENT")) {
+                return "PURCHASES";
+            }
+
+            // 3. Updates (System/Alerts)
+            if (subject.contains("OTP") || subject.contains("VERIFICATION") || 
+                subject.contains("PASSWORD") || subject.contains("SHIPPED") || 
+                subject.contains("ALERT") || subject.contains("SECURITY") ||
+                subject.contains("ACCOUNT") || subject.contains("LOGIN")) {
+                return "UPDATES";
+            }
+
+            // 4. Promotions (Marketing)
+            String[] unsubscribe = message.getHeader("List-Unsubscribe");
+            if ((unsubscribe != null && unsubscribe.length > 0) || 
+                subject.contains("SALE") || subject.contains("OFFER") || 
+                subject.contains("DISCOUNT") || subject.contains("DEAL") || 
+                subject.contains("PROMOTION") || subject.contains("LIMITED TIME") ||
+                subject.contains("% OFF")) {
+                return "PROMOTIONS";
+            }
+
+            // 5. Default: Primary
+            return "PRIMARY";
+
+        } catch (Exception e) {
+            log.warn("Failed to categorize email: {}", e.getMessage());
+            return "PRIMARY";
+        }
     }
 
     private String[] extractContent(Message message) throws MessagingException, IOException {
