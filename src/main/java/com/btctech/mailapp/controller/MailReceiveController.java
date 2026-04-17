@@ -73,10 +73,10 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(response, "Inbox fetched successfully"));
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             String userEmail = (authentication != null) ? authentication.getName() : "Unknown User";
-            log.error("Error fetching inbox for {}: {}", userEmail, e.getMessage(), e);
-            return ResponseEntity.badRequest()
+            log.error("CRITICAL error fetching inbox for {}: {}", userEmail, e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to fetch inbox: " + e.getMessage()));
         }
     }
@@ -120,10 +120,10 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(response, "Sent emails fetched successfully"));
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             String userEmail = (authentication != null) ? authentication.getName() : "Unknown User";
-            log.error("Error fetching sent emails for {}: {}", userEmail, e.getMessage(), e);
-            return ResponseEntity.badRequest()
+            log.error("CRITICAL error fetching sent emails for {}: {}", userEmail, e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to fetch sent emails: " + e.getMessage()));
         }
     }
@@ -167,10 +167,10 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(response, "Starred emails fetched successfully"));
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             String userEmail = (authentication != null) ? authentication.getName() : "Unknown User";
-            log.error("Error fetching starred emails for {}: {}", userEmail, e.getMessage(), e);
-            return ResponseEntity.badRequest()
+            log.error("CRITICAL error fetching starred emails for {}: {}", userEmail, e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to fetch starred emails: " + e.getMessage()));
         }
     }
@@ -203,10 +203,10 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(null, "Star status toggled successfully"));
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             String userEmail = (authentication != null) ? authentication.getName() : "Unknown User";
-            log.error("Error toggling star status for UID {} in folder {} for {}: {}", uid, folder, userEmail, e.getMessage(), e);
-            return ResponseEntity.badRequest()
+            log.error("CRITICAL error toggling star status for UID {} in folder {} for {}: {}", uid, folder, userEmail, e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to toggle star status: " + e.getMessage()));
         }
     }
@@ -247,10 +247,10 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(response, "Trash emails fetched successfully"));
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             String userEmail = (authentication != null) ? authentication.getName() : "Unknown User";
-            log.error("Error fetching trash emails for {}: {}", userEmail, e.getMessage(), e);
-            return ResponseEntity.badRequest()
+            log.error("CRITICAL error fetching trash emails for {}: {}", userEmail, e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to fetch trash emails: " + e.getMessage()));
         }
     }
@@ -282,9 +282,9 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(null, "Email moved to trash successfully"));
 
-        } catch (Exception e) {
-            log.error("Error moving email UID {} to trash from {}: {}", uid, folder, e.getMessage(), e);
-            return ResponseEntity.badRequest()
+        } catch (Throwable e) {
+            log.error("CRITICAL error moving email UID {} to trash from {}: {}", uid, folder, e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to move email to trash: " + e.getMessage()));
         }
     }
@@ -315,9 +315,9 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(null, "Email restored successfully"));
 
-        } catch (Exception e) {
-            log.error("Error restoring email from trash: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest()
+        } catch (Throwable e) {
+            log.error("CRITICAL error restoring email from trash: {}", e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to restore email: " + e.getMessage()));
         }
     }
@@ -348,9 +348,9 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(null, "Email deleted permanently"));
 
-        } catch (Exception e) {
-            log.error("Error deleting email permanently: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest()
+        } catch (Throwable e) {
+            log.error("CRITICAL error deleting email permanently: {}", e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to delete email permanently: " + e.getMessage()));
         }
     }
@@ -383,10 +383,10 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(emailDTO, "Email fetched successfully"));
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             String userEmail = (authentication != null) ? authentication.getName() : "Unknown User";
-            log.error("Error fetching email {} for {}: {}", uid, userEmail, e.getMessage(), e);
-            return ResponseEntity.badRequest()
+            log.error("CRITICAL error fetching email {} for {}: {}", uid, userEmail, e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to fetch email: " + e.getMessage()));
         }
     }
@@ -418,9 +418,9 @@ public class MailReceiveController {
             return ResponseEntity.ok(
                     ApiResponse.success(null, "Email marked as read"));
 
-        } catch (Exception e) {
-            log.error("Error marking email as read: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest()
+        } catch (Throwable e) {
+            log.error("CRITICAL error marking email as read: {}", e.getMessage(), e);
+            return ResponseEntity.status(500)
                     .body(ApiResponse.error("Failed to mark email as read: " + e.getMessage()));
         }
     }

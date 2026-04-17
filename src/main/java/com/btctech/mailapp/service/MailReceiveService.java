@@ -114,6 +114,11 @@ public class MailReceiveService {
             }
 
             Message[] messages = folder.search(new FlagTerm(new Flags(Flags.Flag.FLAGGED), true));
+            if (messages == null) {
+                log.info("No starred messages found for {}", email);
+                return new ArrayList<>();
+            }
+
             List<EmailDTO> emails = new ArrayList<>();
             int count = 0;
             for (int i = messages.length - 1; i >= 0 && count < limit; i--) {
